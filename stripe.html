@@ -1,0 +1,130 @@
+<html>
+<head>
+    <meta charset=utf-8>
+    <title>Earth Model</title>
+    <style>
+        body { margin: 0; }
+        canvas { width: 100%; height: 100% }
+    </style>
+</head>
+<body>
+   <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r83/three.js"></script>
+   <script src="https://cdn.jsdelivr.net/npm/d3-array@3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-geo@3"></script>
+    <script>  
+     const CURVE_SEGMENTS = 32;
+ const CURVE_COLOR = 0xe43c59;
+    var geoInterpolate = d3.geoInterpolate;
+      var scene = new THREE.Scene();
+      var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+
+      var renderer = new THREE.WebGLRenderer();
+      renderer.setSize( window.innerWidth, window.innerHeight );
+      document.body.appendChild( renderer.domElement );
+      var geometry = new THREE.SphereGeometry(1, 32, 32);
+      var material = new THREE.MeshPhongMaterial();
+      var earthmesh = new THREE.Mesh(geometry, material);
+      
+      material.map    = new THREE.TextureLoader().load('images/earthmap1k.jpg');
+      material.bumpMap   = new THREE.TextureLoader().load('images/earthbump1k.jpg');     
+      material.bumpScale = 0.05;
+      material.specularMap = new THREE.TextureLoader().load('images/earthspec1k.jpg')
+      material.specular  = new THREE.Color('grey')
+          //lets add some stars 
+      var stars = new THREE.Mesh(
+      new THREE.SphereGeometry(90, 64, 64), 
+      new THREE.MeshBasicMaterial({
+      map: new THREE.TextureLoader().load('images/galaxy_starfield.png'), 
+      side: THREE.BackSide
+    })
+    );
+    stars.scale =0.2;
+      scene.add(earthmesh);
+      scene.add(stars)
+      scene.add(new THREE.AmbientLight(0x333333));
+      var light = new THREE.DirectionalLight(0xffffff, 1);
+      light.position.set(5,3,5);
+      scene.add(light);
+      camera.position.z = 2;
+      var animate = function () {
+        requestAnimationFrame( animate );
+        earthmesh.rotation.y += 0.001;
+        renderer.render(scene, camera);
+      };
+      animate();
+
+      
+      renderer.setClearColor(0xEEEEEE);
+
+
+
+      //draw the locations
+      const GLOBE_RADIUS = 200;
+      const CURVE_MIN_ALTITUDE = 20;
+      const CURVE_MAX_ALTITUDE = 200;
+      const DEGREE_TO_RADIAN = Math.PI / 180;
+      function clamp(num, min, max) {
+  return num <= min ? min : (num >= max ? max : num);
+}
+function coordinateToPosition(lat, lng, radius) {
+  const phi = (90 - lat) * DEGREE_TO_RADIAN;
+  const theta = (lng + 180) * DEGREE_TO_RADIAN;
+
+  return new THREE.Vector3(
+    - radius * Math.sin(phi) * Math.cos(theta),
+    radius * Math.cos(phi),
+    radius * Math.sin(phi) * Math.sin(theta)
+  );
+}
+function getSplineFromCoords(coords) {
+  const startLat = coords[0];
+  const startLng = coords[1];
+  const endLat = coords[2];
+  const endLng = coords[3];
+
+  // start and end points
+  const start = coordinateToPosition(startLat, startLng, GLOBE_RADIUS);
+  const end = coordinateToPosition(endLat, endLng, GLOBE_RADIUS);
+  
+  // altitude
+  const altitude = clamp(start.distanceTo(end) * .75, CURVE_MIN_ALTITUDE, CURVE_MAX_ALTITUDE);
+  
+  // 2 control points
+  const interpolate = geoInterpolate([startLng, startLat], [endLng, endLat]);
+  const midCoord1 = interpolate(0.25);
+  const midCoord2 = interpolate(0.75);
+  const mid1 = coordinateToPosition(midCoord1[1], midCoord1[0], GLOBE_RADIUS + altitude);
+  const mid2 = coordinateToPosition(midCoord2[1], midCoord2[0], GLOBE_RADIUS + altitude);
+
+  return {
+    start,
+    end,
+    spline: new THREE.CubicBezierCurve3(start, mid1, mid2, end)
+  };
+}
+function Curve(coords, material) {
+  const { spline } = getSplineFromCoords(coords);
+
+  // add curve geometry
+  const curveGeometry = new THREE.BufferGeometry();
+  const points = new Float32Array(CURVE_SEGMENTS * 3);
+  const vertices = spline.getPoints(CURVE_SEGMENTS - 1);
+
+  for (let i = 0, j = 0; i < vertices.length; i++) {
+    const vertex = vertices[i];
+    points[j++] = vertex.x;
+    points[j++] = vertex.y;
+    points[j++] = vertex.z;
+  }
+
+  // !!!
+  // You can use setDrawRange to animate the curve
+  curveGeometry.addAttribute('position', new THREE.BufferAttribute(points, 3));
+  curveGeometry.setDrawRange(0, CURVE_SEGMENTS);
+
+  this.mesh = new THREE.Line(curveGeometry, material);
+}
+          </script>
+    </script>
+</body>
+</html>

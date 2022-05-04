@@ -16,6 +16,8 @@ background: radial-gradient(circle, rgba(155,154,195,1) 8%, rgba(17,38,106,1) 87
    <script src="https://cdn.jsdelivr.net/npm/d3-array@3"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3-geo@3"></script>
     <script> 
+    var nEnd = 0, nMax, nStep = 50;
+    var currentmesh,cordID = 0;
     //change if it is night or day
     const night = true;
     const speed = 0.001;
@@ -26,7 +28,8 @@ background: radial-gradient(circle, rgba(155,154,195,1) 8%, rgba(17,38,106,1) 87
     const DEGREE_TO_RADIAN = Math.PI / 180;
     var geoInterpolate = d3.geoInterpolate;
     var group = new THREE.Group();
-    var newcords = [[-33.96979014620984, 18.563199614709422],[48.724518664223766, 9.177911250908913],[51.615877000440264, 0.31109813001910297],[38.09154483768071, -122.53560966845991],[28.815048591863633, -81.64619331594027],[39.541762576156515, -86.2100444795997],[40.432120644575924, -80.00075710858884],[47.62069082653115, -122.31456952905911],[18.77979378012541, 98.98159008655102],[-27.497555531779742, 152.9274897956595],[-22.898860476802746, -43.48925732759966]];
+    var newcords = [[32.84933420904412, -117.11577306665959],[39.72936785474714, -75.55077098697406],[32.79577328681345, -96.85859304830119],[25.779620175815072, -80.24902866896761],[40.38979221753041, -80.0759306084545],[36.10492482949355, -115.2347647152365],[36.100871478361356, -115.22378599103946],[33.8835405111569, -117.93040066577963],[43.06691162583355, -89.4366459433431],[33.763976458438925, -84.45081967319514],[37.75551835028943, -122.43828775339452],[38.075071713959886, -122.5635962456642],[48.77578510540918, 9.153178256887925],[-33.95493009464746, 18.587481669495357],[34.85608049747699, 136.7582077042448],[30.379978809139967, 531.711540043]];
+    var lastCords = [0,0];
     //var newcords = [[-22.910898250743873, -43.5331953727039],[55.58564620043719, 13.077589635425625],[48.917267675145744, 9.261940280040854],[-22.910898250743873, -43.5331953727039]];
     function clamp(num, min, max) {
   return num <= min ? min : (num >= max ? max : num);
@@ -107,27 +110,26 @@ function getSplineFromCoords(coords) {
       //rotate camera down 
       camera.rotation.x = -0.45;
       //create point to point curve
-     function drawCords(){
+     function drawCords(newCords){
+
       
-      
-      for(let i=0; i < newcords.length; i++){
-        console.log(newcords[i]);
-        let prev = i == 0 ? 1 : i-1;
-        let cords = [newcords[prev][0],newcords[prev][1],newcords[i][0],newcords[i][1]];
+        let cords = [lastCords[0],lastCords[1],newCords[0],newCords[1]];
         let spline = getSplineFromCoords(cords);
         console.log(cords,spline);
-        /*let curve1 = new THREE.TubeGeometry(spline.spl, 50, 0.1, 8, false);
-        let curve1mesh = new THREE.Mesh(curve1, new THREE.MeshBasicMaterial({color: 0xf56042}));
-        scene.add(curve1mesh);*/
-        let curvegeo = new THREE.Geometry();
-        curvegeo.vertices = spline.spline.getPoints(50);
-        let curve1 = new THREE.Line(curvegeo, new THREE.LineBasicMaterial({color: 0xffffff,linewidth:2}));
-        group.add(curve1);	
-      }
-      scene.add(group);
+        let tube = new THREE.TubeGeometry(spline.spline, 50, 0.006, 8, false);
+        let buffer = new THREE.BufferGeometry().fromGeometry( tube );
+        let tubematerial = new THREE.MeshBasicMaterial({color: 0x55ffff});	
+        currentmesh = new THREE.Mesh(buffer, tubematerial);
+
+        nMax = buffer.attributes.position.count;
+        currentmesh.geometry.setDrawRange( 0, 0 );
+        group.add(currentmesh);	
+        lastCords = newCords;
+      
       
     }
-drawCords()
+drawCords([30,30])
+scene.add(group);
 
 //animations
       var animate = function () {
@@ -136,6 +138,22 @@ drawCords()
       corecubeMesh.rotation.y += speed;
       line.rotation.y += speed;
       group.rotation.y += speed;
+      if( nEnd < nMax){
+        console.log("Drawing next Step")
+      nEnd = ( nEnd + nStep ) ;
+      currentmesh.geometry.setDrawRange( 0, nEnd );
+      }else{
+        //console.log("End of animation")
+        if(cordID+1 != newcords.length-1){
+        console.log("There is aqnother one")
+        cordID++;
+        nEnd = 0;	
+        drawCords(newcords[cordID]);
+        }else{
+         // console.log("No more cords")
+        }
+      }
+
       renderer.render( scene, camera );
       };
       //corecubeMesh.rotation.x += 0.5;
@@ -143,8 +161,7 @@ drawCords()
       animate();
       renderer.setClearColor(0x000000, 0);
 
-
           </script>
     </script>
-</body>
+</body> 
 </html>
